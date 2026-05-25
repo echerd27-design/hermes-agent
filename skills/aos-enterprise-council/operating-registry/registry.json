@@ -182,62 +182,74 @@
     {
       "id": "claims-substantiation",
       "path": "skills/claims-substantiation/SKILL.md",
-      "description": "Substantiates public claims with evidence."
+      "description": "Substantiates public claims with evidence.",
+      "status": "planned"
     },
     {
       "id": "threat-modeling",
       "path": "skills/threat-modeling/SKILL.md",
-      "description": "Builds threat models for risky changes."
+      "description": "Builds threat models for risky changes.",
+      "status": "planned"
     },
     {
       "id": "pricing-study",
       "path": "skills/pricing-study/SKILL.md",
-      "description": "Compares pricing and packaging tradeoffs."
+      "description": "Compares pricing and packaging tradeoffs.",
+      "status": "planned"
     },
     {
       "id": "pilot-readiness",
       "path": "skills/pilot-readiness/SKILL.md",
-      "description": "Checks pilot readiness and launch blockers."
+      "description": "Checks pilot readiness and launch blockers.",
+      "status": "planned"
     },
     {
       "id": "research-dossier",
       "path": "skills/research-dossier/SKILL.md",
-      "description": "Produces cited research dossiers."
+      "description": "Produces cited research dossiers.",
+      "status": "planned"
     },
     {
       "id": "bug-fix-protocol",
       "path": "skills/bug-fix-protocol/SKILL.md",
-      "description": "Guides evidence-first bug fixes."
+      "description": "Guides evidence-first bug fixes.",
+      "status": "planned"
     },
     {
       "id": "legal-document-intake",
       "path": "skills/legal-document-intake/SKILL.md",
-      "description": "Structures legal document intake."
+      "description": "Structures legal document intake.",
+      "status": "planned"
     },
     {
       "id": "hazmat-citation-check",
       "path": "skills/hazmat-citation-check/SKILL.md",
-      "description": "Checks hazmat outputs against sources."
+      "description": "Checks hazmat outputs against sources.",
+      "status": "planned"
     },
     {
       "id": "security-authz-change",
       "path": "skills/security-authz-change/SKILL.md",
-      "description": "Reviews security and authz changes."
+      "description": "Reviews security and authz changes.",
+      "status": "planned"
     },
     {
       "id": "compliance-rule-change",
       "path": "skills/compliance-rule-change/SKILL.md",
-      "description": "Reviews compliance rule changes."
+      "description": "Reviews compliance rule changes.",
+      "status": "planned"
     },
     {
       "id": "post-merge-verification",
       "path": "skills/post-merge-verification/SKILL.md",
-      "description": "Verifies post-merge system health."
+      "description": "Verifies post-merge system health.",
+      "status": "planned"
     },
     {
       "id": "pr-readiness-handoff",
       "path": "skills/pr-readiness-handoff/SKILL.md",
-      "description": "Prepares PR readiness handoffs."
+      "description": "Prepares PR readiness handoffs.",
+      "status": "planned"
     }
   ],
   "worker_templates": [

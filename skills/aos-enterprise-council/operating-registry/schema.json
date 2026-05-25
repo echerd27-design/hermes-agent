@@ -34,13 +34,47 @@
       "type": "array"
     },
     "super_specialist_skills": {
-      "type": "array"
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/skillEntry"
+      }
     },
     "worker_templates": {
       "type": "array"
     },
     "separated_collections": {
       "type": "object"
+    }
+  },
+  "definitions": {
+    "skillEntry": {
+      "type": "object",
+      "required": [
+        "id",
+        "path",
+        "description"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "planned",
+            "deprecated"
+          ],
+          "description": "Lifecycle marker. Default active. \"planned\" entries are not required to exist on disk yet."
+        }
+      },
+      "additionalProperties": true
     }
   }
 }
