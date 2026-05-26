@@ -46,7 +46,25 @@ jobs:
       - name: Run tests
         run: |
           source .venv/bin/activate
-          python -m pytest tests/ -q --ignore=tests/integration --ignore=tests/e2e --tb=short -n auto --timeout=30 --timeout-method=signal
+          set +e
+          python -m pytest tests/ -q --ignore=tests/integration --ignore=tests/e2e --tb=short -n auto --timeout=30 --timeout-method=signal 2>&1 | tee /tmp/pytest-output.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "${rc}" != "0" ]; then
+            {
+              echo "## Test failures (extracted)"
+              echo ""
+              echo '```'
+              grep -E '^(FAILED|ERROR) tests/' /tmp/pytest-output.log | head -200 || echo "(no FAILED/ERROR lines matched)"
+              echo '```'
+              echo ""
+              echo "### Last 80 lines of pytest output"
+              echo '```'
+              tail -80 /tmp/pytest-output.log
+              echo '```'
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          exit "${rc}"
         env:
           # Ensure tests don't accidentally call real APIs
           OPENROUTER_API_KEY: ""
