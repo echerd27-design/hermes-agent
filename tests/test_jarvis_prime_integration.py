@@ -11,6 +11,8 @@ must NOT transitively import ``hermes_cli.jarvis_prime``.
 
 from __future__ import annotations
 
+import json
+import subprocess
 import sys
 
 import pytest
@@ -122,13 +124,21 @@ def test_mobile_voice_renders_short_form():
 
 
 def test_route_is_lazy_safe():
-    """``import hermes_cli`` must NOT transitively import jarvis_prime."""
-    sys.modules.pop("hermes_cli", None)
-    sys.modules.pop("hermes_cli.jarvis_prime", None)
-    for mod_name in list(sys.modules):
-        if mod_name.startswith("hermes_cli.jarvis_prime."):
-            sys.modules.pop(mod_name, None)
+    """``import hermes_cli`` must NOT transitively import jarvis_prime.
 
-    import hermes_cli  # noqa: F401
-
-    assert "hermes_cli.jarvis_prime" not in sys.modules
+    Runs in a fresh subprocess so we don't mutate this interpreter's
+    ``sys.modules`` and contaminate sibling tests under ``pytest -n auto``.
+    """
+    probe = (
+        "import hermes_cli, sys, json; "
+        "print(json.dumps([m for m in sys.modules if 'jarvis_prime' in m]))"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=20,
+    )
+    leaked = json.loads(result.stdout.strip() or "[]")
+    assert leaked == [], f"hermes_cli leaks jarvis_prime modules at import: {leaked}"
