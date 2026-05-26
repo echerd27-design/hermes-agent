@@ -168,7 +168,7 @@ def test_unknown_action_string_fails_closed_with_wrong_phrase() -> None:
 )
 def test_unknown_action_type_fails_closed(bad_action: object) -> None:
     with pytest.raises(UnknownActionError):
-        authorize(bad_action, OWNER_GATE_PHRASE)
+        authorize(bad_action, OWNER_GATE_PHRASE)  # type: ignore[invalid-argument-type]
 
 
 def test_resolve_action_unknown_string_raises() -> None:
