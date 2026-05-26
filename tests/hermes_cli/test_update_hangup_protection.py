@@ -207,16 +207,26 @@ class TestInstallHangupProtection:
         if hasattr(_cfg, "_HERMES_HOME_CACHE"):
             _cfg._HERMES_HOME_CACHE = None  # type: ignore[attr-defined]
 
+        # Re-resolve EVERYTHING (function + class + finalize) from the live
+        # module dict so the install call and the isinstance check both see
+        # the same class identity. The module-top imports captured pre-reload
+        # objects; other tests (test_curator_recent_run_notice's fixture)
+        # may have reloaded hermes_cli.main between worker startup and now,
+        # leaving the captured function and class disconnected from each
+        # other if any further reload races slip in. Snapshotting all three
+        # from one fresh import here is the only locally consistent
+        # invariant — see PR #52, commit cac684af (incomplete prior fix).
+        import hermes_cli.main as _hm
+        _install = _hm._install_hangup_protection
+        _finalize = _hm._finalize_update_output
+        _UOS = _hm._UpdateOutputStream
+
         prev_out, prev_err = sys.stdout, sys.stderr
-        state = _install_hangup_protection(gateway_mode=False)
+        state = _install(gateway_mode=False)
 
         try:
             # On Windows (no SIGHUP) we still wrap stdio and create the log.
             assert state["installed"] is True
-            # Re-resolve from the live module: other tests reload
-            # hermes_cli.main, swapping this class in place, which would
-            # make our module-top import a stale identity.
-            from hermes_cli.main import _UpdateOutputStream as _UOS
             assert isinstance(sys.stdout, _UOS)
             assert isinstance(sys.stderr, _UOS)
             assert state["log_file"] is not None
@@ -230,7 +240,7 @@ class TestInstallHangupProtection:
             assert "checking mirror" in contents
             assert "hermes update started" in contents
         finally:
-            _finalize_update_output(state)
+            _finalize(state)
             # Sanity-check restoration
             assert sys.stdout is prev_out
             assert sys.stderr is prev_err
