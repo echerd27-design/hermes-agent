@@ -144,7 +144,10 @@ class TestCouncilPerspective:
     def test_dataclass_is_frozen(self):
         p = aos.CouncilPerspective(role="r", summary="s")
         with pytest.raises(Exception):
-            p.score = 5  # type: ignore[misc]
+            # setattr routes the mutation dynamically so the type checker
+            # cannot statically flag the attempt; the runtime still raises
+            # because @dataclass(frozen=True) blocks all attribute writes.
+            setattr(p, "score", 5)
 
 
 # ---------------------------------------------------------------------------
