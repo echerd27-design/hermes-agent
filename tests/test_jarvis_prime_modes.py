@@ -10,8 +10,11 @@ from hermes_cli.jarvis_prime.modes import Classification, Mode, classify, classi
 # ---------------------------------------------------------------------------
 # Suite 1: Real-world ACI commands (>= 30 cases).
 #
-# Covers all 16 commands named in the Wave 01 brief plus 14 supplemental
-# cases to exercise tie-breaks, defaults, and tricky overlaps.
+# Covers all 16 commands named in the Wave 01 brief plus 17 supplemental
+# cases to exercise tie-breaks, defaults, specialist co-mention, and
+# tricky overlaps. The classifier exposes 5 modes (Operator was folded
+# into Builder + Strategy per the Strategy-heavy direction); specialist
+# activations are surfaced separately via Classification.specialists.
 # ---------------------------------------------------------------------------
 
 REAL_WORLD_CASES: list[tuple[str, Mode]] = [
@@ -23,13 +26,13 @@ REAL_WORLD_CASES: list[tuple[str, Mode]] = [
     ("review PR 482", Mode.BUILDER),
     ("open draft PR for the modes change", Mode.BUILDER),
     ("Android only release scope", Mode.BUILDER),
-    ("kick the job from Termux later", Mode.OPERATOR),
-    ("respond on Slack with the summary", Mode.OPERATOR),
-    ("owner approval for DNS change", Mode.OPERATOR),
-    ("is the HazMat skill production ready?", Mode.CRITIC),
-    ("route through AOS for architecture review", Mode.OPERATOR),
-    ("HazMat Command pre-flight", Mode.OPERATOR),
-    ("Nourish meal log schema review", Mode.OPERATOR),
+    ("kick the job from Termux later", Mode.BUILDER),
+    ("respond on Slack with the summary", Mode.BUILDER),
+    ("owner approval for DNS change", Mode.STRATEGY),
+    ("is the HazMat skill production ready?", Mode.STRATEGY),
+    ("route through AOS for architecture review", Mode.BUILDER),
+    ("HazMat Command pre-flight", Mode.BUILDER),
+    ("Nourish meal log schema review", Mode.BUILDER),
     ("Hey Jay capture this idea", Mode.MOBILE_VOICE),
     ("while jogging, remind me to fix the build", Mode.MOBILE_VOICE),
     ("red team this monetization plan", Mode.CRITIC),
@@ -44,10 +47,10 @@ REAL_WORLD_CASES: list[tuple[str, Mode]] = [
     ("ship it after the lint pass", Mode.BUILDER),
     ("investor pitch outline for HazMat", Mode.STRATEGY),
     ("challenge this assumption: PRs auto-merge", Mode.CRITIC),
-    ("from my phone -- kick off the audit later", Mode.MOBILE_VOICE),
+    ("from my phone -- audit later", Mode.MOBILE_VOICE),
     ("stress test the council routing", Mode.CRITIC),
     ("rebase main and run tests", Mode.BUILDER),
-    ("activate the council for release readiness", Mode.OPERATOR),
+    ("activate the council for release readiness", Mode.BUILDER),
 ]
 
 
@@ -118,20 +121,20 @@ def test_specialist_hazmat_extracted_even_when_strategy_wins() -> None:
     assert "hazmat" in result.specialists
 
 
-def test_specialist_hazmat_extracted_when_operator_wins() -> None:
+def test_specialist_hazmat_extracted_when_builder_wins() -> None:
     result = classify("HazMat Command pre-flight")
-    assert result.mode is Mode.OPERATOR
+    assert result.mode is Mode.BUILDER
     assert "hazmat" in result.specialists
 
 
 def test_specialist_nourish_extracted() -> None:
     result = classify("Nourish meal log schema review")
-    assert result.mode is Mode.OPERATOR
+    assert result.mode is Mode.BUILDER
     assert "nourish" in result.specialists
 
 
 def test_specialist_logistics_extracted() -> None:
-    result = classify("LTL carrier fleet dispatch review")
+    result = classify("LTL carrier fleet review")
     assert "logistics" in result.specialists
 
 
@@ -144,7 +147,7 @@ def test_no_specialist_when_unrelated() -> None:
 # Suite 4: Tie-break order.
 #
 # When two modes score equal at the top, the documented priority chain
-# (MOBILE_VOICE -> BUILDER -> CRITIC -> STRATEGY -> OPERATOR -> COMPANION)
+# (MOBILE_VOICE -> BUILDER -> CRITIC -> STRATEGY -> COMPANION)
 # decides the winner.
 # ---------------------------------------------------------------------------
 
@@ -157,32 +160,26 @@ def test_tie_break_mobile_voice_beats_builder() -> None:
 
 
 def test_tie_break_builder_beats_strategy() -> None:
-    # "ship it" (3) + "lint" (1) Builder; "growth strategy" (3) + "growth"+"strategy" tokens (2) Strategy.
-    # Build a true tie instead by relying on a single phrase per mode.
+    # Builder "ship it" (3) > Strategy "roadmap" token (1).
     result = classify("ship it and roadmap planning")
-    # Builder: "ship it" = 3
-    # Strategy: token "roadmap" = 1
     assert result.mode is Mode.BUILDER
     assert result.scores[Mode.BUILDER] > result.scores[Mode.STRATEGY]
 
 
-def test_tie_break_critic_beats_strategy() -> None:
-    # Both at 3: "red team" overrides at 6 actually, so use a Critic non-override.
-    # "production ready" = 3 (Critic) vs "growth strategy" = 3 + tokens => higher.
-    # Easier: just verify the priority chain ordering at equal scores by
-    # crafting equal one-phrase inputs.
-    result = classify("production ready and roadmap")
-    # Critic: "production ready" = 3
-    # Strategy: token "roadmap" = 1
+def test_tie_break_critic_beats_strategy_at_equal_token_score() -> None:
+    # Critic "flaws" token (1) == Strategy "growth" token (1).
+    # Priority order picks Critic.
+    result = classify("flaws and growth")
     assert result.mode is Mode.CRITIC
+    assert result.scores[Mode.CRITIC] == result.scores[Mode.STRATEGY] == 1
 
 
-def test_tie_break_strategy_beats_operator() -> None:
-    # Strategy "launch blockers" (3) vs Operator "owner approval" (3) -> tie at 3, Strategy wins.
+def test_strategy_beats_companion_when_signal_present() -> None:
+    # Strategy "launch blockers" (3) + "owner approval" (3) = 6; Companion 0.
     result = classify("launch blockers and owner approval")
-    assert result.scores[Mode.STRATEGY] == 3
-    assert result.scores[Mode.OPERATOR] == 3
     assert result.mode is Mode.STRATEGY
+    assert result.scores[Mode.STRATEGY] >= 6
+    assert result.scores[Mode.COMPANION] == 0
 
 
 def test_companion_is_default_on_empty() -> None:
@@ -221,9 +218,18 @@ def test_red_team_override_beats_strategy_co_occurrence() -> None:
     assert result.scores[Mode.CRITIC] > result.scores[Mode.STRATEGY]
 
 
-def test_hazmat_specialist_does_not_override_critic_readiness_question() -> None:
-    """When someone asks if a specialist's skill is production ready,
-    Critic should win over the specialist's Operator bump."""
+def test_production_ready_routes_to_strategy() -> None:
+    """Strategy-heavy bias: 'production ready' is a business/launch
+    readiness question, not a contrarian critique trigger."""
     result = classify("is the HazMat skill production ready?")
-    assert result.mode is Mode.CRITIC
+    assert result.mode is Mode.STRATEGY
     assert "hazmat" in result.specialists
+
+
+def test_operator_mode_no_longer_exists() -> None:
+    """Wave 01 acceptance ships 5 modes; Operator was folded into Builder
+    and Strategy. Guard against accidental re-introduction."""
+    assert "OPERATOR" not in Mode.__members__
+    assert {m.value for m in Mode} == {
+        "companion", "strategy", "critic", "builder", "mobile_voice",
+    }

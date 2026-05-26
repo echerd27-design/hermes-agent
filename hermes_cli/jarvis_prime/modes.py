@@ -1,9 +1,16 @@
 """JARVIS Prime mode classifier.
 
 Deterministic, stdlib-only keyword scoring that maps a free-form ACI
-command to one of six operating modes defined in
-``docs/jarvis-prime-operating-system.md``: Companion, Strategy, Critic,
-Operator, Builder, Mobile Voice. No LLM calls, no external dependencies.
+command to one of the five operating modes the Wave 01 acceptance
+criteria names: Companion, Strategy, Critic, Builder, Mobile Voice.
+
+The JARVIS Prime doc (``docs/jarvis-prime-operating-system.md``) lists
+six modes including Operator, but per user direction during Wave 01
+planning the Operator surface is folded into Builder (routing,
+specialist activation, surface coordination) and Strategy (owner-gate
+decisions). The Classification result still exposes a ``specialists``
+tuple so callers can activate HazMat / Nourish / Logistics workflows
+alongside the chosen Builder/Strategy mode.
 
 Scoring model:
 
@@ -13,12 +20,12 @@ Scoring model:
    such as red-team triggers).
 3. Token pass: each single-word vocabulary hit contributes weight 1.
 4. Specialist extraction: HazMat / Nourish / Logistics triggers are
-   recorded in ``Classification.specialists`` and nudge Operator by 1.
+   recorded in ``Classification.specialists`` and nudge Builder by 1.
 5. Mobile-voice guard: the Mobile Voice score is reset to 0 unless an
    explicit voice/movement surface phrase fired. Slack, Termux, and
    Android-only do NOT count as mobile-voice surfaces.
 6. Tie-break order (highest priority first):
-   MOBILE_VOICE -> BUILDER -> CRITIC -> STRATEGY -> OPERATOR -> COMPANION.
+   MOBILE_VOICE -> BUILDER -> CRITIC -> STRATEGY -> COMPANION.
 7. If every mode scores 0, return Companion.
 """
 
@@ -34,7 +41,6 @@ class Mode(str, Enum):
     COMPANION = "companion"
     STRATEGY = "strategy"
     CRITIC = "critic"
-    OPERATOR = "operator"
     BUILDER = "builder"
     MOBILE_VOICE = "mobile_voice"
 
@@ -44,17 +50,17 @@ _TIE_BREAK_PRIORITY: tuple[Mode, ...] = (
     Mode.BUILDER,
     Mode.CRITIC,
     Mode.STRATEGY,
-    Mode.OPERATOR,
     Mode.COMPANION,
 )
 
 
 _TOKEN_WEIGHT = 1
-_SPECIALIST_OPERATOR_BONUS = 1
+_SPECIALIST_BUILDER_BONUS = 1
 
 
 _PHRASES: dict[Mode, dict[str, int]] = {
     Mode.BUILDER: {
+        # Repo / code-handoff phrases.
         "audit repo": 3,
         "fix build": 3,
         "open pr": 3,
@@ -71,6 +77,14 @@ _PHRASES: dict[Mode, dict[str, int]] = {
         "run tests": 3,
         "bounded fix": 3,
         "rebase main": 3,
+        # Routing / coordination phrases (Operator-style, folded in).
+        "route through aos": 3,
+        "use the council": 3,
+        "activate the council": 3,
+        "hazmat command": 3,
+        "task packet": 3,
+        "slack mobile": 3,
+        "dispatch worker": 3,
     },
     Mode.STRATEGY: {
         "launch blockers": 3,
@@ -81,10 +95,14 @@ _PHRASES: dict[Mode, dict[str, int]] = {
         "investor pitch": 3,
         "growth strategy": 3,
         "pricing tier": 3,
+        # Readiness-as-business-call (Strategy-heavy bias).
+        "production ready": 3,
+        # Owner gates are decision-making moments.
+        "owner approval": 3,
     },
     Mode.CRITIC: {
         # High-signal red-team / contrarian phrases: weight 6 so they
-        # outrank a single co-occurring strategy or operator phrase.
+        # outrank a single co-occurring strategy or builder phrase.
         "red team": 6,
         "red-team": 6,
         "tear apart": 6,
@@ -93,22 +111,10 @@ _PHRASES: dict[Mode, dict[str, int]] = {
         "devils advocate": 6,
         "stress test": 6,
         # Regular Critic phrases.
-        "production ready": 3,
         "weak assumption": 3,
         "what is wrong": 3,
         "what's wrong": 3,
         "fatal flaw": 3,
-    },
-    Mode.OPERATOR: {
-        "route through aos": 3,
-        "use the council": 3,
-        "activate the council": 3,
-        "hazmat command": 3,
-        "owner approval": 3,
-        "task packet": 3,
-        "slack mobile": 3,
-        "dispatch worker": 3,
-        "kick off": 3,
     },
     Mode.MOBILE_VOICE: {
         "hey jay": 3,
@@ -129,9 +135,14 @@ _PHRASES: dict[Mode, dict[str, int]] = {
 
 _TOKENS: dict[Mode, frozenset[str]] = {
     Mode.BUILDER: frozenset({
+        # Core repo / code tokens.
         "pr", "repo", "build", "refactor", "lint", "ci",
         "commit", "branch", "diff", "test", "tests", "audit",
         "implement", "compile", "package",
+        # Routing / surface / specialist tokens (Operator folded in).
+        "route", "dispatch", "ticket", "issue", "packet",
+        "slack", "termux", "aos", "council", "specialist",
+        "hazmat", "nourish", "logistics",
     }),
     Mode.STRATEGY: frozenset({
         "strategy", "monetize", "pricing", "market", "customer",
@@ -140,11 +151,6 @@ _TOKENS: dict[Mode, frozenset[str]] = {
     Mode.CRITIC: frozenset({
         "critique", "contrarian", "risks", "weaknesses", "flaws",
         "assumptions", "objections", "unsafe",
-    }),
-    Mode.OPERATOR: frozenset({
-        "route", "dispatch", "ticket", "issue", "packet",
-        "slack", "termux", "aos", "council", "specialist",
-        "hazmat", "nourish", "logistics",
     }),
     Mode.MOBILE_VOICE: frozenset({
         "voice", "jogging", "walking", "driving", "commute",
@@ -247,7 +253,7 @@ def classify(text: str) -> Classification:
             scores[mode] += _TOKEN_WEIGHT
             matched[mode].append(token)
 
-    # Specialist extraction (nudges Operator by a small amount).
+    # Specialist extraction (nudges Builder by a small amount).
     specialists: list[str] = []
     for spec, triggers in _SPECIALIST_TRIGGERS.items():
         for trigger in triggers:
@@ -259,8 +265,8 @@ def classify(text: str) -> Classification:
             if hit:
                 if spec not in specialists:
                     specialists.append(spec)
-                    scores[Mode.OPERATOR] += _SPECIALIST_OPERATOR_BONUS
-                    matched[Mode.OPERATOR].append(f"specialist:{spec}")
+                    scores[Mode.BUILDER] += _SPECIALIST_BUILDER_BONUS
+                    matched[Mode.BUILDER].append(f"specialist:{spec}")
                 break
 
     # Mobile-voice guard.
