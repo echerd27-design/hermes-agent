@@ -9,6 +9,8 @@ comment, missing test evidence, security finding present).
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from hermes_cli.jarvis_prime.review_packets import (
@@ -88,8 +90,11 @@ class TestDecisionValidation:
             assert d in str(exc.value)
 
     def test_non_string_raises(self):
+        # Force a non-str through Any so static checkers don't reject the
+        # call — we're exercising the runtime guard, not the type system.
+        bad: Any = None
         with pytest.raises(ValueError):
-            normalize_decision(None)  # type: ignore[arg-type]
+            normalize_decision(bad)
 
 
 # ---------------------------------------------------------------------------
