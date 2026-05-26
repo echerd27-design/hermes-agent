@@ -130,6 +130,63 @@ All four pass.
   raised. This is intentional duck-typing, but a future wave that
   formalises the workspace schema may want to align names.
 
+## Out-of-Scope CI Failures (Pre-Existing, Not Touched by This Wave)
+
+After rebasing onto current main (`7e70c6f`, which fixed the systemd /
+CA-bundle headless-runner test failures), the `test` CI job on PR #57
+still reports **2 failures out of 24,453 collected** (run
+`26476416361`). Both are in test files outside Wave 13's ALLOWED FILES
+list, neither imports anything this wave adds, and both reproduce on
+main HEAD with no Wave 13 code present. Per the wave's non-overlap
+contract ("If you discover a required change outside allowed files,
+stop and write it in the wave report instead of editing it"), they
+are documented here and **not** fixed in this PR.
+
+### 1. `tests/hermes_cli/test_update_hangup_protection.py::TestInstallHangupProtection::test_wraps_stdout_and_stderr_with_mirror`
+
+```text
+AssertionError: assert False
+```
+
+PR #6 previously fixed test-ordering pollution on this exact test
+(`importlib.reload(hermes_cli.main)` in `test_curator_recent_run_notice`
+swaps the `_UpdateOutputStream` class identity, and the test's
+module-top import captured the pre-reload identity, so `isinstance`
+returned False). The fix was to re-import inside the test method. The
+fact that this is failing again suggests either (a) another test now
+performs a similar reload, or (b) the fix regressed during a merge.
+Recommended follow-up: re-audit any test that calls
+`importlib.reload(hermes_cli.main)` and confirm the in-method re-import
+is still present.
+
+### 2. `tests/run_agent/test_primary_runtime_restore.py::TestTryRecoverPrimaryTransport::test_wait_time_scales_with_retry_count`
+
+```text
+AssertionError: Expected 'sleep' to be called once. Called 67085 times.
+```
+
+The mock for `sleep` is collecting tens of thousands of `call(1)`
+invocations before the test fails. Likely cause: the test patches the
+wrong symbol (e.g., a `sleep` imported into another module via `from
+time import sleep` rather than the one the retry loop actually calls),
+or the retry path was refactored to use a different sleep entry-point
+without updating the test target. Recommended follow-up: locate the
+retry loop's actual `sleep` call site and update the patch target.
+
+### Why this isn't fixed in this PR
+
+Both files are forbidden by the Wave 13 contract:
+
+> NON-OVERLAP CONTRACT:
+> - Modify only the files listed under ALLOWED FILES.
+> - Do not touch another wave's files.
+> - If you discover a required change outside allowed files, stop and
+>   write it in the wave report instead of editing it.
+
+The four ALLOWED FILES are exhaustively listed at the top of this
+report and neither of these two test files is among them. The fixes
+belong in a separate maintenance PR.
+
 ## Rollback Plan
 
 ```bash
