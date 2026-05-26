@@ -29,7 +29,22 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
       - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
+        # openssh-client: tools/environments/ssh.py raises at import time if
+        #   `ssh` is not on PATH (tests/tools/test_ssh_environment.py).
+        # ripgrep: used by file-search tooling and a few tests.
+        run: sudo apt-get update && sudo apt-get install -y ripgrep openssh-client
+
+      - name: Configure global git identity
+        # Worktree tests create real repos and commit into them
+        # (tests/cli/test_worktree*.py). A clean ubuntu-latest runner has
+        # no global user.email/user.name, so `git commit` exits 128 at
+        # fixture-setup time even when the test sets a *local* identity
+        # in the temp repo (commit metadata still requires a globally
+        # resolvable identity in some git versions).
+        run: |
+          git config --global user.email "ci@hermes-agent.test"
+          git config --global user.name "Hermes CI"
+          git config --global init.defaultBranch main
 
       - name: Install uv
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6
@@ -61,7 +76,13 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
       - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep openssh-client
+
+      - name: Configure global git identity
+        run: |
+          git config --global user.email "ci@hermes-agent.test"
+          git config --global user.name "Hermes CI"
+          git config --global init.defaultBranch main
 
       - name: Install uv
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6
