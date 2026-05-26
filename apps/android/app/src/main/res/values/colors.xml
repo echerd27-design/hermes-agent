@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Pre-S fallback color (matches JarvisPrimary in Color.kt). -->
+    <color name="jarvis_primary">#3F51B5</color>
+</resources>
