@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Jarvis Prime — AndroidManifest (W10 scaffold).
+
+  Deliberately empty of optional permissions:
+    * No INTERNET (the W10 screens do not call backends).
+    * No RECORD_AUDIO (mic permission is requested at-tap in a later wave).
+    * No SMS / READ_CALL_LOG / FOREGROUND_SERVICE_LOCATION / etc.
+    * No POST_NOTIFICATIONS (no automatic prompt on first launch).
+
+  Single launcher activity. No nav graph, no service, no receiver.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.JarvisPrime"
+        tools:targetApi="31"
+        xmlns:tools="http://schemas.android.com/tools">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.JarvisPrime">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>

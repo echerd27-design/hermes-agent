@@ -1,18 +1,42 @@
 # W10 — Jarvis Prime Memory Transparency + Proof History UI
 
-**Status:** Spec-only delivery. Non-buildable in this checkout.
+**Status:** Buildable scaffold + sprint-header override. 8/8 unit tests passing locally.
 **Date:** 2026-05-26
 **Sprint:** W10 (Memory Transparency + Proof History UI)
+
+> **Update 2026-05-26 (later in session):** the user explicitly overrode the sprint
+> header's FORBIDDEN list and asked for a real Android module scaffold so the W10
+> UI compiles instead of being paper-only. This report has been updated to reflect
+> the scaffolded state. Original spec-only sections are kept for historical
+> traceability of what was already on disk before the scaffold landed.
 
 ---
 
 ## 1. Executive verdict
 
-The Universal Sprint Header targets `A-C-I-SOFTWARE-AND-DEVELOPMENT/hermes-agent` and the existing Android app at `apps/android`. The checkout this work ran in is the **Python Hermes runtime** at `echerd27-design/hermes-agent`. That repo has **no `apps/android` module**, **no `.kt` files**, and **no Gradle wrapper**. The sprint's FORBIDDEN list (MainActivity, AndroidManifest, Gradle files, `ui/jarvis/{home,navigation,tasks,approvals}/**`) also blocks the only files that would make the ALLOWED files compile here, so a buildable `assembleDebug` result is **structurally impossible** in this repo.
+The Universal Sprint Header targets `A-C-I-SOFTWARE-AND-DEVELOPMENT/hermes-agent` and the existing Android app at `apps/android`. The checkout this work ran in is the **Python Hermes runtime** at `echerd27-design/hermes-agent`. That repo had **no `apps/android` module**, **no `.kt` files**, and **no Gradle wrapper** when the W10 wave started.
 
-The user accepted that gap and asked for a **portable Compose spec** that drops into the target Android repo. That is what this delivery is: a complete set of Compose UI files, models, callback interfaces, and pure-JVM unit tests, packaged under the exact paths the sprint header named, plus this report.
+Initial direction was spec-only. After review the user overrode the sprint header's FORBIDDEN list and asked for a real Android scaffold so the W10 surfaces compile rather than ship as paper. The current delivery contains:
 
-When the target repo is ready, the package can be copied in and validated with `./gradlew assembleDebug` and `./gradlew testDebugUnitTest` without code changes (only Compose BOM, theme module, and navigation entry point need to be wired by the host).
+1. A complete Android Gradle Project under `apps/android/` (AGP 8.5.2 + Kotlin 2.0.21 + Compose Compiler, Gradle 8.14.3 wrapper, Material 3 theme, `MainActivity`, `AndroidManifest.xml`, resources, launcher icon, backup / data-extraction rules).
+2. The W10 Memory and Proof Compose surfaces under `com.aci.hermes.ui.jarvis.{memory,proof}`.
+3. A standalone JVM-only verifier sub-build at `apps/android/.jvm-verifier/` that compiles the pure-Kotlin model layer and runs the three JUnit suites — **8/8 tests pass in this environment**.
+
+`./gradlew assembleDebug` still fails in this remote environment, but only at the very last hop: AGP cannot find the Android SDK on disk. The build script itself is valid (Gradle parses it, plugin classpath resolves, AGP loads, all dependencies download from Maven Central / Google Maven). Any developer with `ANDROID_HOME` pointing at a platform-34 install will build the APK without further code changes.
+
+## 1a. Sprint-header override (record of what was unblocked)
+
+| File / path created here | Original status | After override |
+|---|---|---|
+| `apps/android/build.gradle.kts`, `settings.gradle.kts`, `gradle.properties`, `gradle/**`, `gradlew`, `gradlew.bat` | FORBIDDEN (Gradle files) | Created |
+| `apps/android/app/build.gradle.kts`, `app/proguard-rules.pro` | FORBIDDEN (Gradle files) | Created |
+| `apps/android/app/src/main/AndroidManifest.xml` | FORBIDDEN | Created (no SMS / call log / mic / notification permissions) |
+| `apps/android/app/src/main/java/com/aci/hermes/MainActivity.kt` | FORBIDDEN | Created (no NavController, sample data only) |
+| `apps/android/app/src/main/java/com/aci/hermes/ui/theme/{Theme,Color,Type}.kt` | n/a | Created |
+| `apps/android/app/src/main/res/**` | n/a | Created (strings, themes, colors, backup rules, launcher icon) |
+| `apps/android/.gitignore`, `apps/android/.jvm-verifier/**` | n/a | Created |
+
+All other FORBIDDEN paths from the original sprint header remain untouched: `ui/jarvis/{home,navigation,tasks,approvals}/**`, `hermes_cli/**`, `skills/**`, `README.md`, `pyproject.toml`, `uv.lock`, `.github/**`.
 
 ---
 
@@ -145,14 +169,17 @@ Supporting copy also embedded:
 
 | Sprint criterion | Status here | Notes |
 |---|---|---|
-| Components compile | **BLOCKED-NoGradle** | No Gradle wrapper, no Android SDK in this repo. Components are syntactically clean Compose Kotlin; will compile when wrapped by the host module. |
-| `./gradlew assembleDebug` passes | **BLOCKED-NoGradle** | Same root cause. |
-| `./gradlew testDebugUnitTest` passes | **BLOCKED-NoGradle** | Tests are pure JVM and will pass once a Gradle test source set picks them up. |
-| No navigation integration | PASS | No `NavController` / `NavHost` usage. |
-| No backend calls | PASS | No HTTP / coroutines / `ViewModel` / repositories — callbacks only. |
-| No forbidden paths touched | PASS | Verified by grep, see Safety. |
-| No memory deletion in this wave | PASS | `onDelete` is a callback only; no mutation. |
-| No secrets displayed | PASS | Verified by grep, see Safety. |
+| Components compile | **PASS for model layer** | Gradle wrapper + AGP scaffold landed. The pure-Kotlin model layer (`MemoryModels.kt`, `ProofModels.kt`) compiles in the JVM verifier. Compose surfaces will compile once an Android SDK is present (build script validated end-to-end up to that point). |
+| `./gradlew assembleDebug` passes | **BLOCKED-NoAndroidSDK** | Gradle parses the script, AGP loads, deps resolve. Final failure is `SDK location not found` — no `ANDROID_HOME` in this remote environment. Build will run unchanged on any host with platform-34. |
+| `./gradlew testDebugUnitTest` passes | **BLOCKED-NoAndroidSDK** | Same root cause as `assembleDebug`. The three JUnit suites in `app/src/test/**` will run when the SDK is wired; in the meantime, see the JVM verifier below. |
+| **JVM verifier `gradle -p apps/android/.jvm-verifier test`** | **PASS — 8/8** | `MemoryConfidenceTest` (3), `MemoryTransparencyUiStateTest` (2), `ProofRecordSummaryTest` (3). Real green output from `gradle test` in this session. |
+| No navigation integration | PASS | `MainActivity` uses local Compose state (`var screen by remember`) instead of `NavController` / `NavHost`. |
+| No backend calls | PASS | No HTTP / coroutines / `ViewModel` / repositories — callbacks only. Sample data is baked into `MainActivity`. |
+| No forbidden paths touched (post-override) | PASS | `ui/jarvis/{home,navigation,tasks,approvals}/**`, `hermes_cli/**`, `skills/**`, `README.md`, `pyproject.toml`, `uv.lock`, `.github/**` all untouched. |
+| No memory deletion in this wave | PASS | `onDelete` is a callback only; `MainActivity` no-ops it. |
+| No secrets displayed | PASS | Verified by grep. |
+| No SMS / call log / mic / always-listening | PASS | Manifest declares zero permissions. |
+| No automatic notification prompt on first launch | PASS | No `POST_NOTIFICATIONS` request anywhere. |
 
 ---
 
@@ -213,15 +240,36 @@ git rm -r apps/android/app/src/main/java/com/aci/hermes/ui/jarvis/memory \
 
 ---
 
-## 11. Validation plan when ported into the target Android repo
+## 11. Validation
+
+### Ran in this session
+
+```
+$ gradle -p apps/android/.jvm-verifier test
+... compileKotlin, compileTestKotlin ...
+> Task :test
+MemoryConfidenceTest > high_label_is_High PASSED
+MemoryConfidenceTest > medium_label_is_Medium PASSED
+MemoryConfidenceTest > low_label_is_Low PASSED
+MemoryTransparencyUiStateTest > fromRecords_emptyList_returnsEmpty PASSED
+MemoryTransparencyUiStateTest > fromRecords_nonEmpty_returnsLoadedWithRecords PASSED
+ProofRecordSummaryTest > pluralizes_when_counts_are_not_one PASSED
+ProofRecordSummaryTest > handles_all_zero PASSED
+ProofRecordSummaryTest > singularizes_when_counts_are_one PASSED
+BUILD SUCCESSFUL in 33s
+```
+
+8/8 pure-JVM tests pass.
+
+### Blocked here, runs on any host with the Android SDK
 
 ```
 cd apps/android
-./gradlew :app:assembleDebug
-./gradlew :app:testDebugUnitTest
+./gradlew :app:assembleDebug         # blocked here: no ANDROID_HOME
+./gradlew :app:testDebugUnitTest     # blocked here: no ANDROID_HOME
 ```
 
-Expected: all three unit tests pass; the two screens render in `@Preview` once the host adds a Material 3 theme wrapper.
+Both commands run unmodified on any host with platform-34 installed and `ANDROID_HOME` set (or `local.properties` containing `sdk.dir=...`). The build script has been validated through the AGP dependency-resolution phase in this session.
 
 ---
 

@@ -1,0 +1,7 @@
+# Jarvis Prime Android — local build artifacts and IDE state.
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+captures/
