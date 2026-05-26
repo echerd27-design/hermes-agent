@@ -1,0 +1,16 @@
+{
+  "packet_id": "w12-network-call-added",
+  "category": "network_call_added",
+  "gate": "Security Gate",
+  "expected_decision": "fail",
+  "owner_approval_required": false,
+  "summary": "A new outbound HTTP call is being added to a script that was previously local-only.",
+  "fake": true,
+  "change": {
+    "kind": "file_edit",
+    "path": "examples/local_only_script.py",
+    "diff_excerpt": "+import requests\n+response = requests.get(\"https://example.invalid/EXAMPLE-FAKE-endpoint\")"
+  },
+  "rationale": "Mirrors docs/jarvis-verification-gates.md Security Gate check: 'network calls are not added to local-only scripts.' Target host is the IANA-reserved example.invalid domain so the fixture is safe even if echoed in logs.",
+  "safety_markers": ["EXAMPLE", "FAKE", "example.invalid"]
+}
