@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from hermes_cli.jarvis_prime.build_packets import (
@@ -20,6 +22,8 @@ def _valid_kwargs(**overrides):
         worker=Worker.CLAUDE_CODE_BUILDER,
         allowed_files=["hermes_cli/jarvis_prime/build_packets.py"],
         acceptance_criteria=["Schema validates required fields."],
+        verification_commands=["pytest tests/test_jarvis_prime_build_packets.py"],
+        rollback_plan="Delete the subpackage.",
     )
     kwargs.update(overrides)
     return kwargs
@@ -81,6 +85,21 @@ class TestBuildPacketValidation:
         with pytest.raises(BuildPacketError, match="acceptance_criteria"):
             packet.validate()
 
+    def test_empty_verification_commands_raises(self):
+        packet = BuildPacket(**_valid_kwargs(verification_commands=[]))
+        with pytest.raises(BuildPacketError, match="verification_commands"):
+            packet.validate()
+
+    def test_empty_rollback_plan_raises(self):
+        packet = BuildPacket(**_valid_kwargs(rollback_plan=""))
+        with pytest.raises(BuildPacketError, match="rollback_plan"):
+            packet.validate()
+
+    def test_blank_rollback_plan_raises(self):
+        packet = BuildPacket(**_valid_kwargs(rollback_plan="   "))
+        with pytest.raises(BuildPacketError, match="rollback_plan"):
+            packet.validate()
+
     def test_worker_not_enum_member_raises(self):
         packet = BuildPacket(**_valid_kwargs(worker="claude_code_builder"))
         with pytest.raises(BuildPacketError, match="worker"):
@@ -124,6 +143,27 @@ class TestBuildPacketValidation:
             )
         )
         packet.validate()
+
+    def test_validate_strict_globs_false_skips_glob_check(self):
+        packet = BuildPacket(
+            **_valid_kwargs(
+                allowed_files=["gateway/main.py"],
+                forbidden_files=["gateway/**"],
+            )
+        )
+        with pytest.raises(BuildPacketError, match="overlap"):
+            packet.validate()
+        packet.validate(strict_globs=False)
+
+    def test_validate_strict_globs_false_still_catches_literal_overlap(self):
+        packet = BuildPacket(
+            **_valid_kwargs(
+                allowed_files=["gateway/main.py"],
+                forbidden_files=["gateway/main.py"],
+            )
+        )
+        with pytest.raises(BuildPacketError, match="overlap"):
+            packet.validate(strict_globs=False)
 
     def test_multiple_errors_combined_in_message(self):
         packet = BuildPacket(**_valid_kwargs(mission="", branch=""))
@@ -189,8 +229,9 @@ class TestSerialization:
             BuildPacket.from_dict(data)
 
     def test_from_dict_rejects_non_mapping(self):
+        not_a_mapping: Any = ["not", "a", "mapping"]
         with pytest.raises(BuildPacketError):
-            BuildPacket.from_dict(["not", "a", "mapping"])
+            BuildPacket.from_dict(not_a_mapping)
 
     def test_from_dict_does_not_call_validate(self):
         data = _valid_kwargs()
@@ -263,8 +304,16 @@ class TestMarkdownRendering:
     def test_markdown_empty_optional_sections_show_none_placeholder(self):
         packet = BuildPacket(**_valid_kwargs())
         md = packet.to_markdown()
-        section = md.split("## Forbidden Files", 1)[1].split("## ", 1)[0]
-        assert "(none)" in section
+        forbidden_section = md.split("## Forbidden Files", 1)[1].split("## ", 1)[0]
+        assert "(none)" in forbidden_section
+        non_goals_section = md.split("## Non-Goals", 1)[1].split("## ", 1)[0]
+        assert "(none)" in non_goals_section
+        owner_section = md.split("## Owner-Gated Actions", 1)[1]
+        assert "(none)" in owner_section
+
+    def test_markdown_blank_rollback_shows_placeholder_in_draft_mode(self):
+        packet = BuildPacket(**_valid_kwargs(rollback_plan=""))
+        md = packet.to_markdown(validate=False)
         rollback_section = md.split("## Rollback Plan", 1)[1].split("## ", 1)[0]
         assert "(none specified)" in rollback_section
 
@@ -287,4 +336,16 @@ class TestMarkdownRendering:
     def test_to_markdown_validate_false_skips_check(self):
         packet = BuildPacket(**_valid_kwargs(mission=""))
         md = packet.to_markdown(validate=False)
+        assert "# Build Packet" in md
+
+    def test_to_markdown_forwards_strict_globs_flag(self):
+        packet = BuildPacket(
+            **_valid_kwargs(
+                allowed_files=["gateway/main.py"],
+                forbidden_files=["gateway/**"],
+            )
+        )
+        with pytest.raises(BuildPacketError, match="overlap"):
+            packet.to_markdown()
+        md = packet.to_markdown(strict_globs=False)
         assert "# Build Packet" in md

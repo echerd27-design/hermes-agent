@@ -37,12 +37,20 @@ class Worker(str, Enum):
     LOCAL_TEST_RUNNER = "local_test_runner"
 
 
-_REQUIRED_STRING_FIELDS: tuple[str, ...] = ("mission", "repo_root", "branch")
-_REQUIRED_LIST_FIELDS: tuple[str, ...] = ("allowed_files", "acceptance_criteria")
+_REQUIRED_STRING_FIELDS: tuple[str, ...] = (
+    "mission",
+    "repo_root",
+    "branch",
+    "rollback_plan",
+)
+_REQUIRED_LIST_FIELDS: tuple[str, ...] = (
+    "allowed_files",
+    "acceptance_criteria",
+    "verification_commands",
+)
 _OPTIONAL_LIST_FIELDS: tuple[str, ...] = (
     "forbidden_files",
     "non_goals",
-    "verification_commands",
     "owner_gated_actions",
 )
 
@@ -85,21 +93,28 @@ class BuildPacket:
     worker: Worker
     allowed_files: list[str] = field(default_factory=list)
     acceptance_criteria: list[str] = field(default_factory=list)
-    forbidden_files: list[str] = field(default_factory=list)
-    non_goals: list[str] = field(default_factory=list)
     verification_commands: list[str] = field(default_factory=list)
     rollback_plan: str = ""
+    forbidden_files: list[str] = field(default_factory=list)
+    non_goals: list[str] = field(default_factory=list)
     owner_gated_actions: list[str] = field(default_factory=list)
 
-    def validate(self) -> None:
+    def validate(self, strict_globs: bool = True) -> None:
         """Raise :class:`BuildPacketError` if the packet is unsafe to dispatch.
 
         Checks:
-        - Required string fields are non-blank after ``strip()``.
-        - Required list fields contain at least one truthy entry.
+        - Required string fields are non-blank after ``strip()``
+          (``mission``, ``repo_root``, ``branch``, ``rollback_plan``).
+        - Required list fields contain at least one truthy entry
+          (``allowed_files``, ``acceptance_criteria``,
+          ``verification_commands``).
         - ``worker`` is a :class:`Worker` instance.
-        - No ``allowed_files`` entry overlaps any ``forbidden_files`` entry
-          (bidirectional ``fnmatch`` comparison, ``**`` normalized to ``*``).
+        - No ``allowed_files`` entry overlaps any ``forbidden_files``
+          entry. When ``strict_globs`` is True (default), overlap is
+          detected with bidirectional ``fnmatch`` (``**`` normalized to
+          ``*``) so a literal path on one side conflicts with a
+          matching glob on the other. When False, overlap is a pure
+          literal-string set intersection.
         """
         errors: list[str] = []
 
@@ -121,10 +136,14 @@ class BuildPacket:
             errors.append("worker must be a Worker enum member")
 
         overlaps: list[str] = []
-        for allowed in self.allowed_files:
-            for forbidden in self.forbidden_files:
-                if _patterns_overlap(allowed, forbidden):
-                    overlaps.append(f"{allowed!r} overlaps {forbidden!r}")
+        if strict_globs:
+            for allowed in self.allowed_files:
+                for forbidden in self.forbidden_files:
+                    if _patterns_overlap(allowed, forbidden):
+                        overlaps.append(f"{allowed!r} overlaps {forbidden!r}")
+        else:
+            shared = set(self.allowed_files) & set(self.forbidden_files)
+            overlaps = [f"{path!r} overlaps {path!r}" for path in sorted(shared)]
         if overlaps:
             errors.append(
                 "allowed_files and forbidden_files must not overlap: "
@@ -197,15 +216,16 @@ class BuildPacket:
 
         return cls(**kwargs)
 
-    def to_markdown(self, validate: bool = True) -> str:
+    def to_markdown(self, validate: bool = True, strict_globs: bool = True) -> str:
         """Render a prompt-ready markdown packet.
 
         When ``validate`` is True (default), the packet is validated
         first so a malformed brief never reaches a worker. Pass
-        ``validate=False`` for draft previews.
+        ``validate=False`` for draft previews. ``strict_globs`` is
+        forwarded to :meth:`validate` when validation runs.
         """
         if validate:
-            self.validate()
+            self.validate(strict_globs=strict_globs)
 
         worker_value = (
             self.worker.value if isinstance(self.worker, Worker) else str(self.worker)

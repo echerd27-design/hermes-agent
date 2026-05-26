@@ -55,10 +55,10 @@ kanban integration) will build on.
 | `worker`              | `Worker`    | yes                   | see enum table below |
 | `allowed_files`       | `list[str]` | yes (≥1)              | safety contract — non-overlap protection |
 | `acceptance_criteria` | `list[str]` | yes (≥1)              | definition of done |
+| `verification_commands` | `list[str]` | yes (≥1)            | renders as a fenced code block; required so every brief carries a falsifiable verify step |
+| `rollback_plan`       | `str`       | yes                   | required so every brief carries an undo path; renders as `(none specified)` only in `validate=False` previews |
 | `forbidden_files`     | `list[str]` | no                    | glob patterns supported; `**` normalized to `*` |
 | `non_goals`           | `list[str]` | no                    | explicit anti-scope statements |
-| `verification_commands` | `list[str]` | no                  | renders as a fenced code block |
-| `rollback_plan`       | `str`       | no                    | renders as `(none specified)` when blank |
 | `owner_gated_actions` | `list[str]` | no                    | actions that require explicit authorization |
 
 ### `Worker` enum
@@ -92,19 +92,29 @@ through `json.dumps` and accept string round-trip via `Worker(value)`.
    lose introspection; a plain `Enum` would force `.value` coercion
    in every serializer.
 
-3. **Allowed/forbidden overlap is detected with `fnmatch` in both
-   directions.** A literal path on either side conflicts with a
-   matching glob on the other. `**` is normalized to `*` before
-   `fnmatchcase`, because `fnmatch` has no native recursive-glob
-   support. This is a documented approximation; callers needing
-   full `pathspec`/`.gitignore` semantics should normalize first.
+3. **Allowed/forbidden overlap detection is glob-aware by default
+   with an opt-out toggle.** `validate(strict_globs=True)` (default)
+   uses bidirectional `fnmatch` so a literal path on either side
+   conflicts with a matching glob on the other; `**` is normalized
+   to `*` before `fnmatchcase`, because `fnmatch` has no native
+   recursive-glob support. `validate(strict_globs=False)` falls back
+   to a pure literal-string set intersection — useful when entries
+   are already concrete paths and glob semantics would generate
+   noise. The toggle is forwarded by `to_markdown(strict_globs=…)`.
+   This is a documented approximation; callers needing full
+   `pathspec`/`.gitignore` semantics should normalize first.
 
 4. **Required-non-empty fields are `mission`, `repo_root`, `branch`,
-   `worker`, `allowed_files`, `acceptance_criteria`.** These are the
-   two safety contracts the wave system itself depends on
-   (`allowed_files` for non-overlap, `acceptance_criteria` for
-   definition-of-done) plus the four routing fields. Everything else
-   is optional and renders a `(none)` placeholder when empty.
+   `worker`, `allowed_files`, `acceptance_criteria`,
+   `verification_commands`, and `rollback_plan`.** This is the
+   "maximal" interpretation: every dispatched packet carries a
+   stated mission, the routing fields, the non-overlap contract
+   (`allowed_files`), the definition-of-done
+   (`acceptance_criteria`), at least one falsifiable verify command
+   (`verification_commands`), and an undo path (`rollback_plan`).
+   The three remaining fields (`forbidden_files`, `non_goals`,
+   `owner_gated_actions`) are optional and render `(none)`
+   placeholders when empty.
 
 5. **Markdown structure is fixed and section order is stable.** The
    layout mirrors the universal-header style: Mission → Worker →
@@ -127,11 +137,11 @@ through `json.dumps` and accept string round-trip via `Worker(value)`.
 ### pytest
 
 ```
-$ uv run python -m pytest tests/test_jarvis_prime_build_packets.py -v -p no:xdist -o addopts=
+$ pytest tests/test_jarvis_prime_build_packets.py
 ============================= test session starts ==============================
 platform linux -- Python 3.11.15, pytest-9.0.3
 configfile: pyproject.toml
-collected 35 items
+collected 42 items
 
 tests/test_jarvis_prime_build_packets.py::TestWorkerEnum::test_enum_values_match_operating_doc PASSED
 tests/test_jarvis_prime_build_packets.py::TestWorkerEnum::test_worker_constructable_from_string PASSED
@@ -144,11 +154,16 @@ tests/test_jarvis_prime_build_packets.py::TestBuildPacketValidation::test_missin
 tests/test_jarvis_prime_build_packets.py::TestBuildPacketValidation::test_empty_allowed_files_raises PASSED
 tests/test_jarvis_prime_build_packets.py::TestBuildPacketValidation::test_allowed_files_with_only_blanks_raises PASSED
 tests/test_jarvis_prime_build_packets.py::TestBuildPacketValidation::test_empty_acceptance_criteria_raises PASSED
+tests/test_jarvis_prime_build_packets.py::TestBuildPacketValidation::test_empty_verification_commands_raises PASSED
+tests/test_jarvis_prime_build_packets.py::TestBuildPacketValidation::test_empty_rollback_plan_raises PASSED
+tests/test_jarvis_prime_build_packets.py::TestBuildPacketValidation::test_blank_rollback_plan_raises PASSED
 tests/test_jarvis_prime_build_packets.py::TestBuildPacketValidation::test_worker_not_enum_member_raises PASSED
 tests/test_jarvis_prime_build_packets.py::TestBuildPacketValidation::test_overlap_literal_path_raises PASSED
 tests/test_jarvis_prime_build_packets.py::TestBuildPacketValidation::test_overlap_glob_forbidden_shadows_allowed_raises PASSED
 tests/test_jarvis_prime_build_packets.py::TestBuildPacketValidation::test_overlap_glob_allowed_shadows_forbidden_raises PASSED
 tests/test_jarvis_prime_build_packets.py::TestBuildPacketValidation::test_no_overlap_passes PASSED
+tests/test_jarvis_prime_build_packets.py::TestBuildPacketValidation::test_validate_strict_globs_false_skips_glob_check PASSED
+tests/test_jarvis_prime_build_packets.py::TestBuildPacketValidation::test_validate_strict_globs_false_still_catches_literal_overlap PASSED
 tests/test_jarvis_prime_build_packets.py::TestBuildPacketValidation::test_multiple_errors_combined_in_message PASSED
 tests/test_jarvis_prime_build_packets.py::TestSerialization::test_to_dict_then_from_dict_roundtrips PASSED
 tests/test_jarvis_prime_build_packets.py::TestSerialization::test_to_dict_serializes_worker_as_string_value PASSED
@@ -164,19 +179,15 @@ tests/test_jarvis_prime_build_packets.py::TestMarkdownRendering::test_markdown_s
 tests/test_jarvis_prime_build_packets.py::TestMarkdownRendering::test_markdown_acceptance_criteria_rendered_as_checkboxes PASSED
 tests/test_jarvis_prime_build_packets.py::TestMarkdownRendering::test_markdown_verification_commands_rendered_in_code_block PASSED
 tests/test_jarvis_prime_build_packets.py::TestMarkdownRendering::test_markdown_empty_optional_sections_show_none_placeholder PASSED
+tests/test_jarvis_prime_build_packets.py::TestMarkdownRendering::test_markdown_blank_rollback_shows_placeholder_in_draft_mode PASSED
 tests/test_jarvis_prime_build_packets.py::TestMarkdownRendering::test_markdown_includes_repo_root_and_branch PASSED
 tests/test_jarvis_prime_build_packets.py::TestMarkdownRendering::test_markdown_includes_worker_value PASSED
 tests/test_jarvis_prime_build_packets.py::TestMarkdownRendering::test_to_markdown_raises_when_packet_invalid PASSED
 tests/test_jarvis_prime_build_packets.py::TestMarkdownRendering::test_to_markdown_validate_false_skips_check PASSED
+tests/test_jarvis_prime_build_packets.py::TestMarkdownRendering::test_to_markdown_forwards_strict_globs_flag PASSED
 
-============================== 35 passed in 1.86s ==============================
+============================== 42 passed in 0.72s ==============================
 ```
-
-Note: the local invocation uses `-p no:xdist -o addopts=` to bypass
-`pyproject.toml` defaults that require optional plugins not present in
-this dev shell. The repo's standard CI invocation
-(`pytest tests/test_jarvis_prime_build_packets.py`) collects the same
-35 tests and is the form documented under the wave's VERIFY section.
 
 ### compileall
 
@@ -208,6 +219,11 @@ $ echo $?
     "Tests cover missing required fields.",
     "Tests cover forbidden overlap detection."
   ],
+  "verification_commands": [
+    "pytest tests/test_jarvis_prime_build_packets.py",
+    "python -m compileall hermes_cli/jarvis_prime/build_packets.py"
+  ],
+  "rollback_plan": "Delete build_packets.py and revert __init__.py.",
   "forbidden_files": [
     "gateway/**",
     "apps/android/**",
@@ -220,11 +236,6 @@ $ echo $?
     "Dispatcher into kanban_swarm.",
     "Packet-from-intent generation."
   ],
-  "verification_commands": [
-    "pytest tests/test_jarvis_prime_build_packets.py",
-    "python -m compileall hermes_cli/jarvis_prime/build_packets.py"
-  ],
-  "rollback_plan": "Delete build_packets.py and revert __init__.py.",
   "owner_gated_actions": [
     "push to remote",
     "open draft PR"
@@ -335,7 +346,7 @@ safe and leaves no dangling references.
 
 - Branch: `aci/wave-05-build-packet-schema`
 - Draft PR title: `wave 05: build packet schema`
-- Tests run: 35 passed (`pytest tests/test_jarvis_prime_build_packets.py`).
+- Tests run: 42 passed (`pytest tests/test_jarvis_prime_build_packets.py`).
 - Compile check: `python -m compileall hermes_cli/jarvis_prime/build_packets.py` exit 0.
 - Remaining risks: those listed in **Risks and follow-ups** above.
 - Rollback: as listed above.
