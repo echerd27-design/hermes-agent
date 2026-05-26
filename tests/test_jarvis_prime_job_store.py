@@ -188,7 +188,7 @@ class TestLedger:
     def test_append_rejects_non_dict(self, store: JobStore):
         record = store.create_job()
         with pytest.raises(TypeError):
-            store.append_ledger(record["id"], "not a dict")  # type: ignore[arg-type]
+            store.append_ledger(record["id"], "not a dict")  # type: ignore
 
     def test_append_missing_job_raises(self, store: JobStore):
         with pytest.raises(FileNotFoundError):
