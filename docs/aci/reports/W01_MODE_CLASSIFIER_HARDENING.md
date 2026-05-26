@@ -79,13 +79,14 @@ Resolved with the user during planning + post-PR clarification:
 
 ## Out-of-scope notes
 
-- **`hermes_cli/jarvis_prime/__init__.py` was NOT created** because it
-  was not on the ALLOWED FILES list for this wave. The module imports
-  cleanly under Python 3.11 via PEP 420 implicit namespace packaging
-  (a regular package may contain a namespace-package subdirectory) —
-  the 65-test suite confirms this. Recommend a one-line follow-up wave
-  to add an empty `__init__.py` for tooling friendliness (some
-  linters / coverage tools still prefer explicit packages).
+- **`hermes_cli/jarvis_prime/__init__.py` was added in a follow-up
+  commit.** The wave's first push omitted it on the theory that
+  PEP 420 implicit namespace packaging would let CI find the new
+  subpackage. The `test` CI job then failed at collection time
+  (`hermes_cli.jarvis_prime` was not resolvable under the parent
+  regular package). The fix is a one-file addition that re-exports
+  the public surface (`Mode`, `Classification`, `classify`,
+  `classify_mode`). It does not change any forbidden config file.
 - **Operator mode was not added to the enum** even though the JARVIS
   Prime doc lists it, per the user's "skip Operator; fold into others"
   direction. If a future wave needs the explicit Operator route, it
@@ -97,6 +98,7 @@ Resolved with the user during planning + post-PR clarification:
 
 ## Changed files
 
+- `hermes_cli/jarvis_prime/__init__.py` *(new, re-exports public surface)*
 - `hermes_cli/jarvis_prime/modes.py` *(new, ~250 lines)*
 - `tests/test_jarvis_prime_modes.py` *(new, 5 test suites, 65 assertions)*
 - `docs/aci/reports/W01_MODE_CLASSIFIER_HARDENING.md` *(this report)*
@@ -141,9 +143,6 @@ project test runner as well.
   "pull" (not in vocabulary). Acceptable for an MVP that doesn't call
   an LLM; vocabulary can be extended in future waves as real corpus
   feedback comes in.
-- Implicit namespace-package import quirk: a small minority of older
-  packaging / coverage tools may not discover `hermes_cli.jarvis_prime`
-  without the explicit `__init__.py`. See out-of-scope note above.
 - The Operator-fold means specialist activations (HazMat / Nourish /
   Logistics) all land in Builder. Callers that need to differentiate
   "build for HazMat" vs "route to HazMat specialist" should read the
