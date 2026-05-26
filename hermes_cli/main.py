@@ -1780,6 +1780,47 @@ def cmd_model(args):
     select_provider_and_model(args=args)
 
 
+def cmd_jarvis(args):
+    """Invoke the JARVIS Prime CLI adapter (thin slash/mode router).
+
+    Prints the resolved JARVIS mode, persona header, and SKILL.md
+    response-format template for the given slash command or free-text
+    payload. The actual reasoning is owned by the JARVIS Prime skill
+    (``skills/jarvis-prime/SKILL.md``); this entry point exists so
+    ``hermes jarvis ...`` is runnable from any shell and so the slash
+    commands have a Python landing pad.
+    """
+    from hermes_cli.jarvis_prime import (
+        Mode,
+        ModeClassifier,
+        Router,
+        dispatch,
+    )
+
+    raw = " ".join([args.command, *args.message]).strip()
+    if raw.startswith("/"):
+        result = dispatch(raw)
+        if result is None:
+            print(f"Unknown JARVIS slash command: {args.command}")
+            return 1
+        mode = result.mode
+        payload = result.payload
+        route = result.route
+    else:
+        payload = raw
+        mode = ModeClassifier().classify(payload)
+        route = Router().route(mode, payload)
+
+    print(f"JARVIS Prime — mode: {mode.value}")
+    print(route.persona_header)
+    print()
+    print(route.response_format)
+    if payload:
+        print()
+        print(f"Payload: {payload}")
+    return 0
+
+
 def _is_profile_api_key_provider(provider_id: str) -> bool:
     """Return True when provider_id maps to a profile with auth_type='api_key'.
 
@@ -10295,6 +10336,7 @@ _BUILTIN_SUBCOMMANDS = frozenset(
         "computer-use",
         "config", "cron", "curator", "dashboard", "debug", "doctor",
         "dump", "fallback", "gateway", "hooks", "import", "insights",
+        "jarvis",
         "kanban", "login", "logout", "logs", "lsp", "mcp", "memory",
         "model", "pairing", "plugins", "postinstall", "profile", "proxy",
         "send", "sessions", "setup",
@@ -10465,6 +10507,29 @@ def main():
         help="Disable TLS verification for Nous login (testing only)",
     )
     model_parser.set_defaults(func=cmd_model)
+
+    # =========================================================================
+    # jarvis command — JARVIS Prime CLI adapter (slash → mode router)
+    # =========================================================================
+    jarvis_parser = subparsers.add_parser(
+        "jarvis",
+        help="Invoke JARVIS Prime adapter (mode-classified handoff template)",
+        description=(
+            "Resolve a slash command or free-text payload to a JARVIS Prime "
+            "mode and print the persona header + SKILL.md response-format "
+            "template. See skills/jarvis-prime/SKILL.md for mode semantics."
+        ),
+    )
+    jarvis_parser.add_argument(
+        "command",
+        help="Slash command (/builder, /operator, …) or free text",
+    )
+    jarvis_parser.add_argument(
+        "message",
+        nargs="*",
+        help="Optional message payload following the command",
+    )
+    jarvis_parser.set_defaults(func=cmd_jarvis)
 
     # =========================================================================
     # fallback command — manage the fallback provider chain
