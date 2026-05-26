@@ -1,6 +1,8 @@
 """Unit tests for hermes_cli.jarvis_prime.context_compression."""
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from hermes_cli.jarvis_prime import CompressedHandoff, compress_context
@@ -206,10 +208,12 @@ def test_empty_input_returns_empty_handoff():
 
 
 def test_invalid_input_type_raises_type_error():
+    bad_int: Any = 42
+    bad_float: Any = 3.14
     with pytest.raises(TypeError):
-        compress_context(42)  # type: ignore[arg-type]
+        compress_context(bad_int)
     with pytest.raises(TypeError):
-        compress_context(3.14)  # type: ignore[arg-type]
+        compress_context(bad_float)
 
 
 def test_export_in_init():

@@ -326,7 +326,7 @@ def _classify(
 
 
 def _ingest_mapping(
-    notes: Mapping[str, Any],
+    notes: Mapping[Any, Any],
     buckets: dict[str, list[str]],
     *,
     redact_secrets: bool,
@@ -337,9 +337,13 @@ def _ingest_mapping(
             if alias in notes:
                 value = notes[alias]
                 break
-            # Also check case-insensitive at the top level.
             lower_match = next(
-                (k for k in notes if k.lower() == alias), None
+                (
+                    k
+                    for k in notes
+                    if isinstance(k, str) and k.lower() == alias
+                ),
+                None,
             )
             if lower_match is not None:
                 value = notes[lower_match]
