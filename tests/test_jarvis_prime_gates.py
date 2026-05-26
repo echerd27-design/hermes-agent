@@ -9,6 +9,8 @@ editors, no-tests-with-reason) are exercised end-to-end through
 
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 
 from hermes_cli.jarvis_prime.gates import (
@@ -39,10 +41,12 @@ def _base_packet(**overrides) -> Packet:
 
     Models a clean docs-only PR with full planning, review, test, release,
     and rollback metadata. Tests construct each scenario by passing only
-    the deltas as keyword overrides.
+    the deltas as keyword overrides. Construction goes through ``Packet``
+    directly (rather than ``Packet(**dict)``) so each field's annotated
+    type is visible to the type checker.
     """
 
-    base = dict(
+    base = Packet(
         repo="echerd27-design/hermes-agent",
         branch="aci/wave-09-gate-regression-tests",
         working_tree="clean",
@@ -92,8 +96,9 @@ def _base_packet(**overrides) -> Packet:
         risky_runtime_change=False,
         revert_strategy="",
     )
-    base.update(overrides)
-    return Packet(**base)
+    if not overrides:
+        return base
+    return dataclasses.replace(base, **overrides)
 
 
 # ── per-gate pass + fail coverage ───────────────────────────────────────────
