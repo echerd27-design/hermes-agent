@@ -24,6 +24,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -70,6 +73,43 @@ jobs:
           OPENROUTER_API_KEY: ""
           OPENAI_API_KEY: ""
           NOUS_API_KEY: ""
+
+      - name: Post pytest failures as PR comment (probe)
+        if: failure() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ ! -f /tmp/pytest-output.log ]; then
+            echo "No pytest log captured; skipping comment."
+            exit 0
+          fi
+          {
+            echo "## ci-probe: pytest failures (run ${RUN_ID})"
+            echo ""
+            echo "Job: ${JOB_URL}"
+            echo ""
+            echo "### FAILED / ERROR lines"
+            echo '```'
+            grep -E '^(FAILED|ERROR) tests/' /tmp/pytest-output.log | head -200 || echo '(no FAILED/ERROR lines matched)'
+            echo '```'
+            echo ""
+            echo "### Last 120 lines of pytest output"
+            echo '```'
+            tail -120 /tmp/pytest-output.log
+            echo '```'
+          } > /tmp/comment.md
+          python3 -c "import json,sys; print(json.dumps({'body': sys.stdin.read()}))" < /tmp/comment.md > /tmp/payload.json
+          curl -sSf -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/issues/${PR_NUMBER}/comments" \
+            --data-binary @/tmp/payload.json
+          echo
+          echo "Posted failure comment to PR #${PR_NUMBER}"
 
   e2e:
     runs-on: ubuntu-latest
