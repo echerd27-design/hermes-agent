@@ -1,7 +1,8 @@
 """Tests for ``hermes_cli.jarvis_prime.session``."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import pytest
 
@@ -16,18 +17,17 @@ from hermes_cli.jarvis_prime import (
 _FIXED_TS = datetime(2026, 5, 26, 12, 0, 0, tzinfo=timezone.utc)
 
 
-def _make_session(surface: str = "cli", **overrides) -> Session:
-    base = dict(
-        surface=surface,
-        user_id="jeremiah",
-        active_job_id="job-42",
-        last_mode="builder",
-        created_at=_FIXED_TS,
-        updated_at=_FIXED_TS,
-        metadata={"client": "test"},
-    )
-    base.update(overrides)
-    return Session(**base)
+def _make_session(surface: str = "cli", **overrides: Any) -> Session:
+    fields: dict[str, Any] = {
+        "user_id": "jeremiah",
+        "active_job_id": "job-42",
+        "last_mode": "builder",
+        "created_at": _FIXED_TS,
+        "updated_at": _FIXED_TS,
+        "metadata": {"client": "test"},
+    }
+    fields.update(overrides)
+    return Session(surface=surface, **fields)
 
 
 class TestSurfaceEnum:
@@ -105,7 +105,7 @@ class TestSessionConstruction:
         naive = datetime(2026, 5, 26, 12, 0, 0)
         s = Session(surface="cli", created_at=naive)
         assert s.created_at.tzinfo is not None
-        assert s.created_at.utcoffset().total_seconds() == 0
+        assert s.created_at.utcoffset() == timedelta(0)
 
 
 class TestSerializationRoundTrip:
