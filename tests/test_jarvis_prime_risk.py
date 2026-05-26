@@ -260,7 +260,7 @@ class TestSignalsTable:
     def test_signal_dataclass_is_frozen(self):
         sig = SIGNALS[0]
         with pytest.raises((AttributeError, Exception)):
-            sig.label = "tampered"  # type: ignore[misc]
+            setattr(sig, "label", "tampered")
 
 
 class TestRationaleText:
