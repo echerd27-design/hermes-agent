@@ -7,7 +7,6 @@ isolated foundation: callers manage lifecycle via context manager.
 from __future__ import annotations
 
 import json
-import re
 import sqlite3
 from contextlib import AbstractContextManager
 from pathlib import Path
@@ -16,6 +15,7 @@ from typing import Iterable, Iterator, Sequence
 
 from hermes_cli.memory_tree.artifacts import Artifact
 from hermes_cli.memory_tree.chunker import Chunk
+from hermes_cli.memory_tree.summary_tree import Summary
 
 SCHEMA_VERSION = 1
 
@@ -60,13 +60,6 @@ CREATE TABLE IF NOT EXISTS summary (
 
 CREATE INDEX IF NOT EXISTS idx_summary_scope ON summary(scope, scope_key);
 """
-
-
-_TOKEN_RE = re.compile(r"[A-Za-z0-9]{2,}")
-
-
-def _tokenise(text: str) -> list[str]:
-    return [t.lower() for t in _TOKEN_RE.findall(text)]
 
 
 class MemoryTreeIndex(AbstractContextManager["MemoryTreeIndex"]):
@@ -183,12 +176,7 @@ class MemoryTreeIndex(AbstractContextManager["MemoryTreeIndex"]):
             )
         return len(rows)
 
-    def upsert_summary(self, summary: "object") -> None:
-        # Imported lazily to avoid an import cycle (summary_tree imports chunker).
-        from hermes_cli.memory_tree.summary_tree import Summary
-
-        if not isinstance(summary, Summary):
-            raise TypeError("expected Summary instance")
+    def upsert_summary(self, summary: Summary) -> None:
         with self.conn:
             self.conn.execute(
                 """
@@ -290,9 +278,7 @@ class MemoryTreeIndex(AbstractContextManager["MemoryTreeIndex"]):
                 char_end=row["char_end"],
             )
 
-    def iter_summaries(self, scope: str | None = None) -> Iterator["object"]:
-        from hermes_cli.memory_tree.summary_tree import Summary
-
+    def iter_summaries(self, scope: str | None = None) -> Iterator[Summary]:
         if scope is None:
             cur = self.conn.execute("SELECT * FROM summary ORDER BY scope, scope_key, level")
         else:
