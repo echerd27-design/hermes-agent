@@ -3,8 +3,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from hermes_cli.native_engineer.repo_map import (
     classify,
     extract_python_symbols,

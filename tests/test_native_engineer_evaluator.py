@@ -1,6 +1,8 @@
 """Tests for hermes_cli.native_engineer.evaluator."""
 from __future__ import annotations
 
+from dataclasses import replace
+
 from hermes_cli.native_engineer.evaluator import Evidence, evaluate
 from hermes_cli.native_engineer.patch_engine import Patch, validate
 from hermes_cli.native_engineer.test_runner import TestCommand, TestResult
@@ -8,7 +10,7 @@ from hermes_cli.native_engineer.work_packet import WorkPacket
 
 
 def _packet(**overrides) -> WorkPacket:
-    defaults = dict(
+    base = WorkPacket(
         mission="m",
         branch="b",
         allowed_files=("hermes_cli/native_engineer/**",),
@@ -18,8 +20,7 @@ def _packet(**overrides) -> WorkPacket:
         rollback_plan="git rm",
         metadata=(),
     )
-    defaults.update(overrides)
-    return WorkPacket(**defaults)
+    return replace(base, **overrides) if overrides else base
 
 
 def _green_result() -> TestResult:
