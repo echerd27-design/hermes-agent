@@ -19,7 +19,7 @@ for snapshot testing and content hashing.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, fields
-from typing import Iterable, Mapping
+from typing import Any, Iterable, Mapping
 
 from hermes_cli.jarvis_prime import persona
 
@@ -76,7 +76,7 @@ class Handoff:
             raise ValueError(
                 f"unknown Handoff field(s): {sorted(unknown)!r}"
             )
-        kwargs: dict[str, object] = {}
+        kwargs: dict[str, Any] = {}
         for key, value in data.items():
             if key in {"owner_gates", "actions"} and not isinstance(value, tuple):
                 if isinstance(value, (list, tuple)):
@@ -87,7 +87,7 @@ class Handoff:
                     )
             else:
                 kwargs[key] = value
-        return cls(**kwargs)  # type: ignore[arg-type]
+        return cls(**kwargs)
 
 
 def _join_or_none(items: Iterable[str]) -> str:

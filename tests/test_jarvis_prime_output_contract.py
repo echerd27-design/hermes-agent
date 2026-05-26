@@ -8,6 +8,8 @@ is pure (no I/O, no env reads), so the hermetic invariants in
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from hermes_cli.jarvis_prime import persona
@@ -23,8 +25,8 @@ EXPECTED_MODES = frozenset(
 )
 
 
-def _builder_handoff(**overrides: object) -> Handoff:
-    defaults: dict[str, object] = dict(
+def _builder_handoff(**overrides: Any) -> Handoff:
+    defaults: dict[str, Any] = dict(
         mission="ship the JARVIS output contract",
         mode="builder",
         route="claude-code-builder",
@@ -36,7 +38,7 @@ def _builder_handoff(**overrides: object) -> Handoff:
         actions=("scaffolded runtime.py", "scaffolded persona.py"),
     )
     defaults.update(overrides)
-    return Handoff(**defaults)  # type: ignore[arg-type]
+    return Handoff(**defaults)
 
 
 def test_modes_registry_matches_documented_set():
