@@ -71,26 +71,24 @@ $ python -m compileall hermes_cli/jarvis_prime
 Listing 'hermes_cli/jarvis_prime'...
 
 $ pytest tests/test_jarvis_prime_output_contract.py -v
-collected 19 items
-... 19 passed in 1.46s
+collected 8 items
+... 8 passed in 0.55s
 ```
 
-Coverage targets exercised:
+Coverage targets exercised (minimum surface, per owner direction):
 
-- mode registry exact-match and validator error message
-- `Handoff` mode validation + tuple-typed `owner_gates` / `actions`
-- `Handoff.from_mapping` list→tuple coercion and unknown-key rejection
-- long-form render contains every contract field for the builder
-  route and the strategy route
-- empty `actions` / `owner_gates` / `remaining_risk` render as `none`
-- compact form respects 6-line, 80-char budgets for `mobile_voice`
-- compact form keeps `Gates:` when present and drops it when empty
-- compact form drops `Risk:` when empty
-- compact form preserves mission and next-action lines even under
-  500-character inputs (truncated with `…`)
-- compact form rejects `max_lines < 4` with `ValueError`
-- both renderers produce identical output across paired calls
-- modules reload cleanly with no side effects
+- mode registry exact-match against the six documented modes
+- `Handoff` mode validation guard
+- long-form render contains every contract field for the **builder** route
+- long-form render uses the **strategy** tone label and renders empty
+  `actions` / `owner_gates` / `remaining_risk` as `none`
+- compact render for the **mobile_voice** route respects the 6-line,
+  80-char budget and preserves mission + next-action lines
+- **owner-gated** route renders `Owner gates` in long form and `Gates:`
+  in compact form; empty tuple drops the compact line
+- compact form preserves mission and next-action under 500-character
+  inputs (truncated with `…`)
+- both renderers produce identical output for equal handoffs
 
 ## Owner gates
 
@@ -142,7 +140,7 @@ Changed files
 
 Tests
 - python -m compileall hermes_cli/jarvis_prime — ok
-- pytest tests/test_jarvis_prime_output_contract.py — 19 passed
+- pytest tests/test_jarvis_prime_output_contract.py — 8 passed
 
 Remaining risks
 - Renderer not yet wired into gateway/mobile (future wave).
