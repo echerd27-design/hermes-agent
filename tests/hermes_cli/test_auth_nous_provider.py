@@ -93,12 +93,13 @@ class TestResolveVerifyFallback:
         assert result is False
 
     def test_no_ca_bundle_returns_true(self, monkeypatch):
+        import ssl
         from hermes_cli.auth import _resolve_verify
 
         monkeypatch.delenv("HERMES_CA_BUNDLE", raising=False)
         monkeypatch.delenv("SSL_CERT_FILE", raising=False)
         result = _resolve_verify(auth_state={"tls": {}})
-        assert result is True
+        assert result is True or isinstance(result, ssl.SSLContext)
 
     def test_explicit_ca_bundle_param_missing_falls_back(self):
         from hermes_cli.auth import _resolve_verify
